@@ -30,8 +30,19 @@ lua/codecompanion/adapters/http/gemini-code-assist/
 
 ## Installation
 
-1. Copy the **Auth Module** code into `lua/codecompanion/adapters/http/gemini-code-assist/auth.lua`.
-2. Copy the **Adapter Definition** code into `lua/codecompanion/adapters/http/gemini-code-assist/init.lua`.
+Using [lazy.nvim](https://github.com/folke/lazy.nvim), you can add this adapter as a dependency to ensure it loads alongside CodeCompanion:
+
+```lua
+{
+  "olimorris/codecompanion.nvim",
+  dependencies = {
+    -- ... other dependencies ...
+    -- Gemini Code Assist Adapter
+    "viespejo/cc-adapter-gemini-code-assist.nvim",
+  },
+  -- ... other CodeCompanion setup ...
+}
+```
 
 ## Configuration
 
@@ -82,6 +93,10 @@ require("codecompanion").setup({
       })
     end,
   },
+  interactions = {
+    chat = { adapter = "gemini_code_assist_work" },
+    inline = { adapter = "gemini_code_assist_personal" },
+  },
 })
 ```
 
@@ -115,6 +130,7 @@ The adapter manages two types of tokens to ensure security and persistence:
 - `curl` installed on your system.
 - For Individual use: A personal Google account.
 - For Enterprise/Standard use: A GCP project with the "Gemini for Google Cloud API" enabled.
+- CodeCompanion v18.0.0 or later.
 
 ## Troubleshooting
 
