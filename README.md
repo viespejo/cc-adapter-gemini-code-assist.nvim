@@ -142,3 +142,4 @@ The adapter manages two types of tokens to ensure security and persistence:
 ## 🙏 Acknowledgements
 
 - [Oli Morris](https://github.com/olimorris) for creating [CodeCompanion.nvim](https://codecompanion.olimorris.dev)
+- [Jens Lystad](https://github.com/jenslys) for his plugin for [Opencode](https://opencode.ai) which inspired this adapter [opencode-gemini-auth](https://github.com/jenslys/opencode-gemini-auth)
