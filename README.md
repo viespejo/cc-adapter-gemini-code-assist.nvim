@@ -138,3 +138,7 @@ The adapter manages two types of tokens to ensure security and persistence:
 - **Port Conflicts**: The adapter uses a random free port for the authentication callback. If you are behind a strict firewall, ensure local loopback connections are allowed.
 - **Logs**: Use `:CodeCompanionLog` to view detailed request/response data if authentication fails.
 - **Token Location**: Tokens are stored in `stdpath("data")` as `gemini_code_assist_token_[profile].json`.
+
+## 🙏 Acknowledgements
+
+- [Oli Morris](https://github.com/olimorris) for creating [CodeCompanion.nvim](https://codecompanion.olimorris.dev)
