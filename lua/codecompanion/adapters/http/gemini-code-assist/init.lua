@@ -394,9 +394,24 @@ return {
           generation_config.thinkingConfig = { includeThoughts = params.include_thoughts }
           if params.reasoning_effort then
             if model:find("gemini%-3") then
-              generation_config.thinkingConfig.thinkingLevel = params.reasoning_effort ~= "none"
-                  and params.reasoning_effort
-                or "minimal"
+              local effort = params.reasoning_effort == "none" and "minimal" or params.reasoning_effort
+
+              -- Apply table restrictions for Gemini 3 models
+              if model:find("3%.1%-pro") then
+                -- 3.1 Pro: No minimal
+                if effort == "minimal" then
+                  effort = "low"
+                end
+              elseif model:find("3%-pro") then
+                -- 3 Pro: No minimal, No medium
+                if effort == "minimal" then
+                  effort = "low"
+                elseif effort == "medium" then
+                  effort = "high"
+                end
+              end
+
+              generation_config.thinkingConfig.thinkingLevel = effort
             else
               -- Legacy/Pro models using budget
               local is_pro = model:find("pro") ~= nil
@@ -530,6 +545,10 @@ return {
       desc = "The model that will complete your prompt. See https://ai.google.dev/gemini-api/docs/models/gemini#model-variations for additional details and options.",
       default = "gemini-3-flash-preview",
       choices = {
+        ["gemini-3.1-pro-preview"] = {
+          formatted_name = "Gemini 3.1 Pro",
+          opts = { can_reason = true, has_vision = true },
+        },
         ["gemini-3-pro-preview"] = {
           formatted_name = "Gemini 3 Pro",
           opts = { can_reason = true, has_vision = true },
