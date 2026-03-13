@@ -294,6 +294,9 @@ return {
   headers = vim.tbl_extend("force", constants.HEADERS, {
     ["Authorization"] = "Bearer ${access_token}",
     ["Content-Type"] = "application/json",
+    ["Accept"] = "*/*",
+    ["Accept-Encoding"] = "gzip,deflate",
+    ["User-Agent"] = "GeminiCLI/0.33.0/gemini-3.1-pro-preview (linux; x64) google-api-nodejs-client/9.15.1",
   }),
 
   handlers = {
@@ -341,7 +344,6 @@ return {
         -- set endpoint based on streaming or not
         if self.opts and self.opts.stream then
           self.url = constants.API_BASE_URL .. ":streamGenerateContent?alt=sse"
-          self.headers["Accept"] = "text/event-stream"
         else
           self.url = constants.API_BASE_URL .. ":generateContent"
         end
@@ -386,6 +388,9 @@ return {
         if params.top_p then
           generation_config.topP = params.top_p
         end
+        if params.top_k then
+          generation_config.topK = params.top_k
+        end
 
         -- reasoning configuration
         -- gemini 3 thinkingLevel
@@ -411,7 +416,7 @@ return {
                 end
               end
 
-              generation_config.thinkingConfig.thinkingLevel = effort
+              generation_config.thinkingConfig.thinkingLevel = effort:upper()
             else
               -- Legacy/Pro models using budget
               local is_pro = model:find("pro") ~= nil
@@ -488,6 +493,7 @@ return {
             if part.functionCall then
               -- [API will wait a functionResponse for each functionCall in the same message]
               -- see interactions/chat/init.lua Chat:add_tool_output where tool output are merged by call_id
+
               -- we need to avoid call_id merging in order to be able to handle multiple function calls in the same message
               -- how? generating a unique call_id here for each function call
               local call_id = string.format("call_%s_%s", response.responseId or "gen", vim.uv.hrtime())
@@ -583,7 +589,7 @@ return {
       mapping = "parameters",
       type = "number",
       optional = true,
-      default = nil,
+      default = 1,
       desc = "Controls the randomness of the output.",
       validate = function(n)
         return n >= 0 and n <= 2, "Must be between 0 and 2"
@@ -592,16 +598,27 @@ return {
     top_p = {
       order = 4,
       mapping = "parameters",
-      type = "integer",
+      type = "number",
       optional = true,
-      default = nil,
+      default = 0.95,
       desc = "The maximum cumulative probability of tokens to consider when sampling. The model uses combined Top-k and Top-p (nucleus) sampling. Tokens are sorted based on their assigned probabilities so that only the most likely tokens are considered. Top-k sampling directly limits the maximum number of tokens to consider, while Nucleus sampling limits the number of tokens based on the cumulative probability.",
       validate = function(n)
         return n > 0, "Must be greater than 0"
       end,
     },
-    reasoning_effort = {
+    top_k = {
       order = 5,
+      mapping = "parameters",
+      type = "integer",
+      optional = true,
+      default = 64,
+      desc = "The maximum number of tokens to consider when sampling. The model uses combined Top-k and Top-p (nucleus) sampling. Tokens are sorted based on their assigned probabilities so that only the most likely tokens are considered. Top-k sampling directly limits the maximum number of tokens to consider, while Nucleus sampling limits the number of tokens based on the cumulative probability.",
+      validate = function(n)
+        return n > 0, "Must be greater than 0"
+      end,
+    },
+    reasoning_effort = {
+      order = 6,
       mapping = "parameters",
       type = "string",
       optional = true,
@@ -620,7 +637,7 @@ return {
       },
     },
     include_thoughts = {
-      order = 6,
+      order = 7,
       mapping = "parameters",
       type = "boolean",
       optional = true,
