@@ -1,9 +1,9 @@
 local adapter_utils = require("codecompanion.utils.adapters")
 local auth = require("codecompanion.adapters.http.gemini-code-assist.auth")
-local config = require("codecompanion.config")
 local constants = require("codecompanion.adapters.http.gemini-code-assist.constants")
-local curl = require("plenary.curl")
 local log = require("codecompanion.utils.log")
+local runtime = require("codecompanion.adapters.http.gemini-code-assist.runtime")
+local stats = require("codecompanion.adapters.http.gemini-code-assist.stats")
 
 -- create command to force login if needed
 vim.api.nvim_create_user_command("CodeCompanionGeminiAuth", function(opts)
@@ -16,66 +16,6 @@ end, {
   nargs = "?",
   desc = "Authenticate with Gemini Code Assist. Optional: profile name",
 })
-
-local token_cache = {}
-
----Get a fresh access token
----@param token_file string
----@return string|nil
-local function get_fresh_token(token_file)
-  -- check memory cache
-  local cache = token_cache[token_file] or { access_token = nil, expires_at = 0 }
-
-  if cache.access_token and os.time() < (cache.expires_at - 120) then
-    return cache.access_token
-  end
-
-  -- check disk (via Auth module)
-  local refresh_token, _ = auth.load_token(token_file)
-
-  if not refresh_token then
-    -- we do NOT trigger auth here
-    -- Auth is triggered in the 'resolve' handler.
-    vim.notify("Gemini: Authentication required. Please run :CodeCompanionGeminiAuth", vim.log.levels.WARN)
-    return nil
-  end
-
-  log:trace("Gemini Code Assist: Refreshing access token...")
-  local ok, response = pcall(curl.post, constants.TOKEN_URL, {
-    insecure = config.adapters.http.opts.allow_insecure,
-    proxy = config.adapters.http.opts.proxy,
-    body = {
-      client_id = constants.CLIENT_ID,
-      client_secret = constants.CLIENT_SECRET,
-      refresh_token = refresh_token,
-      grant_type = "refresh_token",
-    },
-    timeout = 10000,
-  })
-
-  if not ok then
-    log:error("Gemini Code Assist: Network error during token refresh: %s", response)
-    return nil
-  end
-
-  if response.status == 200 then
-    local decode_ok, data = pcall(vim.json.decode, response.body)
-    if decode_ok and data and data.access_token then
-      token_cache[token_file] = {
-        access_token = data.access_token,
-        expires_at = os.time() + (data.access_token_expires_in or data.expires_in or 3599),
-      }
-      log:trace("Gemini Code Assist: Token refreshed successfully")
-      return data.access_token
-    else
-      log:error("Gemini Code Assist: Failed to decode token response: %s", response.body)
-    end
-  else
-    log:error("Gemini Code Assist: Token refresh failed (Status %s): %s", response.status, response.body)
-  end
-
-  return nil
-end
 
 -- =============================================================================
 -- HELPERS
@@ -291,12 +231,17 @@ return {
     project_id = "GEMINI_CODE_ASSIST_PROJECT_ID", -- default environment variable name
     access_token = "", -- don't set here, handled in lifecycle setup and used in headers interpolation
   },
+
+  show_stats = function(self) -- require override the "copilot_stags" chat keymap in CodeCompanion to use this. see README for instructions.
+    return stats.show(self and self.opts and self.opts.profile or nil, self and self.env and self.env.project_id or nil)
+  end,
+
   headers = vim.tbl_extend("force", constants.HEADERS, {
     ["Authorization"] = "Bearer ${access_token}",
     ["Content-Type"] = "application/json",
     ["Accept"] = "*/*",
     ["Accept-Encoding"] = "gzip,deflate",
-    ["User-Agent"] = "GeminiCLI/0.33.0/gemini-3.1-pro-preview (linux; x64) google-api-nodejs-client/9.15.1",
+    ["User-Agent"] = constants.USER_AGENT,
   }),
 
   handlers = {
@@ -314,32 +259,20 @@ return {
         local token_file = constants.get_token_path(self.opts.profile)
 
         -- get fresh token
-        self.env.access_token = get_fresh_token(token_file)
+        self.env.access_token = runtime.get_fresh_token(token_file)
         if not self.env.access_token then
           return false
         end
 
-        -- project_id Logic: Config > Cache > Provision
-        if
-          self.env.project_id == "GEMINI_CODE_ASSIST_PROJECT_ID" and not os.getenv("GEMINI_CODE_ASSIST_PROJECT_ID")
-        then
-          local _, cached_id = auth.load_token(token_file)
-          if cached_id then
-            self.env.project_id = cached_id
-          else
-            log:info("Gemini: Resolving managed project...")
-            local managed_id = auth.resolve_managed_project(self.env.access_token)
-            if managed_id then
-              self.env.project_id = managed_id
-              auth.save_project_id(token_file, managed_id)
-            else
-              log:error(
-                "Gemini: Could not resolve Project ID. Ensure 'Gemini for Google Cloud API' is enabled at https://console.cloud.google.com/apis/library/cloudaicompanion.googleapis.com"
-              )
-              return false
-            end
-          end
+        local project_id = runtime.resolve_project_id({
+          token_file = token_file,
+          access_token = self.env.access_token,
+          configured_project_id = self.env.project_id,
+        })
+        if not project_id then
+          return false
         end
+        self.env.project_id = project_id
 
         -- set endpoint based on streaming or not
         if self.opts and self.opts.stream then

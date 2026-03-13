@@ -25,6 +25,8 @@ Create a directory named `gemini-code-assist` inside your CodeCompanion adapters
 lua/codecompanion/adapters/http/gemini-code-assist/
 ├── init.lua       (Adapter definition)
 ├── auth.lua       (OAuth2 manager)
+├── runtime.lua    (Token/project runtime resolution)
+├── stats.lua      (Quota stats retrieval + UI)
 └── constants.lua  (Shared configuration)
 ```
 
@@ -79,12 +81,12 @@ You can use multiple Google accounts by defining different profiles. Each profil
 ```lua
 require("codecompanion").setup({
   adapters = {
-    gemini_personal = function()
+    gemini_code_assist_personal = function()
       return require("codecompanion.adapters").extend("gemini-code-assist", {
         opts = { profile = "personal" }
       })
     end,
-    gemini_work = function()
+    gemini_code_assist_work = function()
       return require("codecompanion.adapters").extend("gemini-code-assist", {
         opts = { profile = "work" },
         env = {
@@ -103,6 +105,44 @@ require("codecompanion").setup({
 ### Environment Variables
 The adapter can automatically resolve configuration from your system environment:
 - `GEMINI_CODE_ASSIST_PROJECT_ID`: Your Google Cloud Project ID.
+
+## Quota Stats (gS in chat)
+
+This adapter exposes a `show_stats` function.  
+To make `gS` work for Gemini in the chat buffer, override the `copilot_stats` keymap in your local CodeCompanion setup:
+
+```lua
+require("codecompanion").setup({
+  -- ...existing setup...
+  interactions = {
+    chat = {
+      keymaps = {
+        copilot_stats = {
+          modes = { n = "gS" },
+          description = "[Adapter] Usage statistics",
+          callback = function(chat)
+            if not chat or not chat.adapter then
+              return
+            end
+
+            local fn = chat.adapter.show_stats or chat.adapter.show_copilot_stats
+            if type(fn) == "function" then
+              return fn(chat.adapter)
+            end
+
+            vim.notify("Stats are not available for this adapter", vim.log.levels.WARN)
+          end,
+        },
+      },
+    },
+  },
+})
+```
+
+Usage:
+1. Open a chat using the Gemini Code Assist adapter.
+2. Press `gS`.
+3. A floating window will show quota buckets (model, token type, remaining %, reset time).
 
 ## Authentication Flow
 
@@ -124,6 +164,7 @@ The adapter manages two types of tokens to ensure security and persistence:
 - **Reasoning/Thinking**: Supports Gemini 3 "Thinking" models with `reasoning_effort` and `include_thoughts`.
 - **Vision**: Automatic detection of image support based on the selected model.
 - **Tools**: compatible with CodeCompanion's Agents and Tools ecosystem.
+- **Quota Stats**: View remaining Gemini Code Assist request quota per model in a floating window.
 
 ## Requirements
 
@@ -138,6 +179,7 @@ The adapter manages two types of tokens to ensure security and persistence:
 - **Port Conflicts**: The adapter uses a random free port for the authentication callback. If you are behind a strict firewall, ensure local loopback connections are allowed.
 - **Logs**: Use `:CodeCompanionLog` to view detailed request/response data if authentication fails.
 - **Token Location**: Tokens are stored in `stdpath("data")` as `gemini_code_assist_token_[profile].json`.
+- **Stats Not Available**: If `gS` shows "Stats are not available for this adapter", verify your chat keymap override is loaded and that the active adapter is Gemini Code Assist.
 
 ## 🙏 Acknowledgements
 

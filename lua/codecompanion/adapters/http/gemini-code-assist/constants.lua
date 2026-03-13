@@ -5,7 +5,9 @@ M.CLIENT_SECRET = vim.env.GEMINI_CLIENT_SECRET or "GOCSPX-4uHgMPm-1o7Sk-geV6Cu5c
 M.TOKEN_URL = "https://oauth2.googleapis.com/token"
 M.AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 M.API_BASE_URL = "https://cloudcode-pa.googleapis.com/v1internal"
+M.QUOTA_URL = M.API_BASE_URL .. ":retrieveUserQuota"
 M.TOKEN_FILE_NAME = "gemini_code_assist_token.json"
+M.USER_AGENT = "GeminiCLI/0.33.0/gemini-3.1-pro-preview (linux; x64) google-api-nodejs-client/9.15.1"
 
 ---Get the path to the token file for a specific profile
 ---@param profile? string
